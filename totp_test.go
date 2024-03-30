@@ -37,7 +37,6 @@ func ExampleGenerateTOTP() {
 	}
 
 	fmt.Println("TOTP:", hotp)
-
 	// Output:
 	// secret [49 50 51 52 53 54 55 56 57 48 49 50 51 52 53 54 55 56 57 48]
 	// time 2033-05-18 03:33:20 +0000 UTC

@@ -26,7 +26,6 @@ func ExampleGenerateHOTP() {
 	}
 
 	fmt.Println("HOTP:", hotp)
-
 	// Output:
 	// secret [49 50 51 52 53 54 55 56 57 48 49 50 51 52 53 54 55 56 57 48]
 	// counter 9

@@ -5,7 +5,7 @@ package otp
 
 import "crypto/sha1"
 
-// GenerateHOTP generates HMAC-based one-time password per RFC4226.
+// GenerateHOTP generates HMAC-based one-time password per RFC 4226.
 func GenerateHOTP(secret []byte, counter uint64, digits uint) (string, error) {
 	return GenerateOTP(sha1.New, secret, counter, digits)
 }

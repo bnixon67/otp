@@ -24,6 +24,8 @@ func Checksum(h func() hash.Hash, key, message []byte) ([]byte, error) {
 // GenerateOTP generates a HMAC-based One Time Password (OTP) using the
 // specified hash function, a secret key, a counter value, and the desired
 // number of digits in the OTP.
+//
+// This function contains common logic of the HOTP and TOTP algorithms.
 func GenerateOTP(h func() hash.Hash, secret []byte, counter uint64, digits uint) (string, error) {
 	// Convert the counter value to a byte slice in big-endian order.
 	counterBytes := make([]byte, 8) // 8 bytes for uint64
@@ -36,7 +38,7 @@ func GenerateOTP(h func() hash.Hash, secret []byte, counter uint64, digits uint)
 	}
 
 	// Dynamic truncation to extract a 4-byte dynamic binary code from
-	// the hashi per RFC 4226.
+	// the hash per RFC 4226.
 	offset := int(hash[len(hash)-1] & 0xf)
 	code := (int(hash[offset]&0x7f)<<24 |
 		int(hash[offset+1]&0xff)<<16 |
