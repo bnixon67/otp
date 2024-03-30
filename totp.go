@@ -9,20 +9,19 @@ import (
 	"time"
 )
 
-// DefaultTimeStep is the default time step in seconds for TOTP.
-// RFC 6238 recommends 30 seconds.
+// DefaultTimeStep in seconds per RFC 6238.
 const DefaultTimeStep = 30
 
-// GenerateTOTP generates a TOTP based on the given parameters as per RFC 6238.
-// If 'h' is nil, SHA-1 is used by default.
+// GenerateTOTP returns a Time-based One-Time Password as per RFC 6238.
+// If h is nil, SHA-1 is used.
 func GenerateTOTP(secret []byte, time time.Time, digits uint, h func() hash.Hash) (string, error) {
 	// Convert time to a counter value based on a 30-second time step.
 	interval := time.Unix() / DefaultTimeStep
 
-	// Use SHA-1 as the default hash function if none is specified.
+	// Default to SHA-1 if no hash function is provided.
 	if h == nil {
 		h = sha1.New
 	}
 
-	return generateOTP(h, secret, uint64(interval), digits)
+	return GenerateOTP(h, secret, uint64(interval), digits)
 }

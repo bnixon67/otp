@@ -43,8 +43,8 @@ func totp(timeStr, hash string) {
 	layout := "2006-01-02 15:04:05"
 	time, err := time.Parse(layout, timeStr)
 	if err != nil {
-		fmt.Println("Could not parse time %q: %v\n", timeStr, err)
-		panic("Cannot parse time")
+		fmt.Println(err)
+		return
 	}
 
 	var key []byte
