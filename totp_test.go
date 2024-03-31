@@ -4,7 +4,7 @@
 package otp_test
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // skipcq: GSC-G505
 	"crypto/sha256"
 	"crypto/sha512"
 	"fmt"

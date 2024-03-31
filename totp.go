@@ -4,7 +4,7 @@
 package otp
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // skipcq: GSC-G505
 	"hash"
 	"time"
 )

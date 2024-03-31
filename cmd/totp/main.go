@@ -4,7 +4,6 @@
 package main
 
 import (
-	"crypto/sha1"
 	"encoding/base32"
 	"fmt"
 	"os"
@@ -29,7 +28,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	totp, err := otp.GenerateTOTP(data, time.Now(), uint(6), sha1.New)
+	totp, err := otp.GenerateTOTP(data, time.Now(), uint(6), nil)
 	if err != nil {
 		fmt.Printf("Failed to generate TOTP: %v\n", err)
 		os.Exit(2)

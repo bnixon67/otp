@@ -3,7 +3,7 @@
 
 package otp
 
-import "crypto/sha1"
+import "crypto/sha1" // skipcq: GSC-G505
 
 // GenerateHOTP generates HMAC-based one-time password per RFC 4226.
 func GenerateHOTP(secret []byte, counter uint64, digits uint) (string, error) {
