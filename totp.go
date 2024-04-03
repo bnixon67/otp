@@ -9,19 +9,32 @@ import (
 	"time"
 )
 
-// DefaultTimeStep in seconds per RFC 6238.
-const DefaultTimeStep = 30
+// DefaultTimeStepSeconds defines the time step in seconds used to calculate
+// the TOTP counter, as per RFC 6238.
+const DefaultTimeStepSeconds = 30
 
-// GenerateTOTP returns a Time-based One-Time Password as per RFC 6238.
-// If h is nil, SHA-1 is used.
-func GenerateTOTP(secret []byte, time time.Time, digits uint, h func() hash.Hash) (string, error) {
-	// Convert time to a counter value based on a 30-second time step.
-	interval := time.Unix() / DefaultTimeStep
+// DefaultHashFunction provides a default hash function (SHA-1) for TOTP
+// generation when none is specified.  SHA-1 is chosen for its compatibility
+// with RFC 6238.
+var DefaultHashFunction = sha1.New
 
-	// Default to SHA-1 if no hash function is provided.
-	if h == nil {
-		h = sha1.New
+// calculateTimeStepCounter converts a timestamp to a counter based on the
+// timestep. This counter is used to generate the TOTP value.
+func calculateTimeStepCounter(timestamp time.Time, timestep int64) uint64 {
+	return uint64(timestamp.Unix() / timestep)
+}
+
+// GenerateTOTP generates a Time-based One-Time Password (TOTP) per
+// RFC 6238 using the provided secret, timestamp, and the desired OTP length
+// in digits. It allows for a custom hash function; if none is provided,
+// SHA-1 is used by default.
+func GenerateTOTP(secret []byte, timestamp time.Time, digits uint, hashFunc func() hash.Hash) (string, error) {
+	// Convert the timestamp to counter value using time step.
+	interval := calculateTimeStepCounter(timestamp, DefaultTimeStepSeconds)
+
+	if hashFunc == nil {
+		hashFunc = DefaultHashFunction
 	}
 
-	return GenerateOTP(h, secret, uint64(interval), digits)
+	return GenerateOTP(hashFunc, secret, uint64(interval), digits)
 }
