@@ -33,7 +33,7 @@ func parseFlags() (secret string, digits uint, timeString, hash string) {
 
 func validateSecret(secret string) error {
 	if secret == "" {
-		return errors.New("secret flag is required")
+		return errors.New("secret is required")
 	}
 	return nil
 }
@@ -58,44 +58,53 @@ func hashFunction(hashName string) (func() hash.Hash, error) {
 	return nil, errors.New("invalid hash name")
 }
 
-func printErrorAndExit(err error, exitCode int) {
-	fmt.Fprintf(os.Stderr, "%v\n", err)
-	fmt.Printf("Usage: %s -secret base32_secret -digits number -time time -hash function\n", path.Base(os.Args[0]))
-	flag.PrintDefaults()
-	os.Exit(exitCode)
-}
-
 func printTOTP(totp string, parsedTime time.Time, digits uint, hashName string) {
 	fmt.Printf("%s %v digits=%d hash=%s\n",
 		totp, parsedTime.Format(timeFormat), digits, hashName)
 }
 
-func main() {
-	secret, digits, timeString, hashName := parseFlags()
-
+func runTOTP(secret string, digits uint, timeString, hashName string) error {
 	if err := validateSecret(secret); err != nil {
-		printErrorAndExit(err, 1)
+		return err
 	}
 
 	parsedTime, err := parseTime(timeString)
 	if err != nil {
-		printErrorAndExit(err, 2)
+		return err
 	}
 
 	data, err := decodeSecret(secret)
 	if err != nil {
-		printErrorAndExit(err, 3)
+		return err
 	}
 
 	hashFunc, err := hashFunction(hashName)
 	if err != nil {
-		printErrorAndExit(err, 4)
+		return err
 	}
 
 	totp, err := otp.GenerateTOTP(data, parsedTime, digits, hashFunc)
 	if err != nil {
-		printErrorAndExit(err, 5)
+		return err
 	}
 
 	printTOTP(totp, parsedTime, digits, hashName)
+
+	return nil
+}
+
+func usage(err error) {
+	fmt.Fprintf(os.Stderr, "%v\n", err)
+	fmt.Printf("Usage: %s -secret base32_secret -digits number -time time -hash function\n", path.Base(os.Args[0]))
+	flag.PrintDefaults()
+}
+
+func main() {
+	secret, digits, timeString, hashName := parseFlags()
+
+	err := runTOTP(secret, digits, timeString, hashName)
+	if err != nil {
+		usage(err)
+		os.Exit(1)
+	}
 }
