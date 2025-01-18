@@ -16,7 +16,7 @@ const DefaultTimeStepSeconds = 30
 // DefaultHashFunction provides a default hash function (SHA-1) for TOTP
 // generation when none is specified.  SHA-1 is chosen for its compatibility
 // with RFC 6238.
-var DefaultHashFunction = sha1.New
+func DefaultHashFunction() hash.Hash { return sha1.New() }
 
 // calculateTimeStepCounter converts a timestamp to a counter based on the
 // timestep. This counter is used to generate the TOTP value.
