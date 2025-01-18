@@ -15,6 +15,8 @@ func TestValidateOTP(t *testing.T) {
 		{"123456", "654321", false},
 		{"123456", "12345", false},
 		{"", "", true},
+		{"123456", "1234567", false},
+		{"000000", "111111", false},
 	}
 
 	for _, test := range tests {

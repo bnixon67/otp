@@ -40,8 +40,8 @@ func TestGenerateHOTP(t *testing.T) {
 	digits := uint(6)
 
 	tests := []struct {
-		count    uint64
-		expected string
+		count uint64
+		want  string
 	}{
 		{0, "755224"},
 		{1, "287082"},
@@ -61,8 +61,8 @@ func TestGenerateHOTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Error generating OTP: %v", err)
 			}
-			if !otp.Validate(tc.expected, hotp) {
-				t.Fatalf("generateOTP(%d) = %v, want %v", tc.count, hotp, tc.expected)
+			if tc.want != hotp {
+				t.Fatalf("generateOTP(%d) = %v, want %v", tc.count, hotp, tc.want)
 			}
 		})
 	}
