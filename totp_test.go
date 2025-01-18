@@ -19,7 +19,7 @@ import (
 func ExampleGenerateTOTP() {
 	secret := []byte("12345678901234567890")
 	layout := "2006-01-02 15:04:05"
-	time, err := time.Parse(layout, "2033-05-18 03:33:20")
+	parsedTime, err := time.Parse(layout, "2033-05-18 03:33:20")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -27,10 +27,10 @@ func ExampleGenerateTOTP() {
 	digits := uint(8)
 
 	fmt.Println("secret", secret)
-	fmt.Println("time", time)
+	fmt.Println("time", parsedTime)
 	fmt.Println("digits", digits)
 
-	hotp, err := otp.GenerateTOTP(secret, time, digits, nil)
+	hotp, err := otp.GenerateTOTP(secret, parsedTime, digits, nil)
 	if err != nil {
 		fmt.Println("Error generating TOTP:", err)
 		return
@@ -120,14 +120,14 @@ func TestGenerateTOTP(t *testing.T) {
 	// Loop through each test
 	for _, tc := range tests {
 		t.Run(tc.time, func(t *testing.T) {
-			time, err := time.Parse(layout, tc.time)
+			parsedTime, err := time.Parse(layout, tc.time)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			got, err := otp.GenerateTOTP(
 				modes[tc.mode].secret,
-				time,
+				parsedTime,
 				digits,
 				modes[tc.mode].hash,
 			)
@@ -135,10 +135,10 @@ func TestGenerateTOTP(t *testing.T) {
 				t.Fatalf("Error generating OTP: %v", err)
 			}
 
-			if got != tc.want {
+			if !otp.Validate(got, tc.want) {
 				t.Fatalf("GenerateTOTP(%v, %q, %d, %q) = %q, want %q",
 					modes[tc.mode].secret,
-					time,
+					parsedTime,
 					digits,
 					tc.mode,
 					got,

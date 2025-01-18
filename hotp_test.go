@@ -61,7 +61,7 @@ func TestGenerateHOTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Error generating OTP: %v", err)
 			}
-			if hotp != tc.expected {
+			if !otp.Validate(tc.expected, hotp) {
 				t.Fatalf("generateOTP(%d) = %v, want %v", tc.count, hotp, tc.expected)
 			}
 		})

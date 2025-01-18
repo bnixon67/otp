@@ -7,6 +7,7 @@ package otp
 
 import (
 	"crypto/hmac"
+	"crypto/subtle"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -24,14 +25,12 @@ func ComputeHMAC(hashFunc func() hash.Hash, key, message []byte) ([]byte, error)
 	return mac.Sum(nil), nil
 }
 
-// uint64SizeBytes represents the size of a uint64 type in bytes.
-const uint64SizeBytes = 8
-
 // uint64ToBytes converts a counter value to a byte slice in big-endian order.
 func uint64ToBytes(counter uint64) []byte {
-	counterBytes := make([]byte, uint64SizeBytes)
-	binary.BigEndian.PutUint64(counterBytes, counter)
-	return counterBytes
+	const uint64SizeBytes = 8 // size of a uint64 type in bytes.
+	buf := make([]byte, uint64SizeBytes)
+	binary.BigEndian.PutUint64(buf, counter)
+	return buf
 }
 
 // dynamicTruncation extracts a dynamic binary code from the hash using an
@@ -56,6 +55,10 @@ func formatOTP(code int, digits uint) string {
 // (RFC 6238) standards. This function contains common logic of the HOTP
 // and TOTP algorithms.
 func GenerateOTP(hashFunc func() hash.Hash, secret []byte, counter uint64, digits uint) (string, error) {
+	if len(secret) < 16 {
+		return "", fmt.Errorf("secret must be at least 16 bytes")
+	}
+
 	counterBytes := uint64ToBytes(counter)
 	hash, err := ComputeHMAC(hashFunc, secret, counterBytes)
 	if err != nil {
@@ -66,4 +69,15 @@ func GenerateOTP(hashFunc func() hash.Hash, secret []byte, counter uint64, digit
 	otp := formatOTP(code, digits)
 
 	return otp, nil
+}
+
+// Validate securely compares two OTP values.
+func Validate(x, y string) bool {
+	// Ensure both OTPs have the same length to prevent length-based attacks
+	if len(x) != len(y) {
+		return false
+	}
+
+	// Use constant-time comparison to prevent timing attacks
+	return subtle.ConstantTimeCompare([]byte(x), []byte(y)) == 1
 }
