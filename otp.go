@@ -7,77 +7,131 @@ package otp
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/binary"
+	"errors"
 	"fmt"
-	"hash"
-	"math"
+	"strings"
 )
 
-// ComputeHMAC calculates the HMAC checksum for message using the provided
-// hash function and key. It returns the HMAC checksum or an error if the
-// message cannot be processed.
-func ComputeHMAC(hashFunc func() hash.Hash, key, message []byte) ([]byte, error) {
-	mac := hmac.New(hashFunc, key)
-	if _, err := mac.Write(message); err != nil {
-		return nil, err
+// minSecretLen is the minimum secret length in bytes as required by RFC 4226.
+const minSecretLen = 16
+
+// GenerateSecret returns a cryptographically random secret of n bytes,
+// suitable for use with GenerateTOTP or GenerateHOTP.
+//
+// RFC 4226 requires a minimum of 16 bytes (128 bits) and recommends at
+// least 20 bytes (160 bits).
+func GenerateSecret(n uint) ([]byte, error) {
+	if n < minSecretLen {
+		return nil, fmt.Errorf("secret length must be at least %d bytes, got %d", minSecretLen, n)
 	}
-	return mac.Sum(nil), nil
+
+	secret := make([]byte, n)
+	_, err := rand.Read(secret)
+	if err != nil {
+		return nil, err // crypto/rand.Read never returns an error in Go 1.20+.
+	}
+
+	return secret, nil
 }
 
-// uint64ToBytes converts a counter value to a byte slice in big-endian order.
-func uint64ToBytes(counter uint64) []byte {
-	const uint64SizeBytes = 8 // size of a uint64 type in bytes.
-	buf := make([]byte, uint64SizeBytes)
-	binary.BigEndian.PutUint64(buf, counter)
-	return buf
+// EncodeSecret encodes secret as a base32 string without padding,
+// suitable for provisioning URIs and QR codes.
+func EncodeSecret(secret []byte) string {
+	return base32NoPad.EncodeToString(secret)
+}
+
+// DecodeSecret decodes a base32-encoded secret string into raw bytes.
+// Input is accepted in upper or lower case and without padding characters.
+func DecodeSecret(s string) ([]byte, error) {
+	return base32NoPad.DecodeString(strings.ToUpper(s))
+}
+
+// ConstantTimeEqual compares two OTP strings to prevent timing attacks.
+func ConstantTimeEqual(x, y string) bool {
+	return subtle.ConstantTimeCompare([]byte(x), []byte(y)) == 1
+}
+
+// computeHMAC calculates the HMAC checksum for message using the provided
+// hash function and key. It returns the HMAC checksum or an error if the
+// message cannot be processed.
+func computeHMAC(hashFunc HashFunc, key, message []byte) ([]byte, error) {
+	if hashFunc == nil {
+		return nil, errors.New("hash function is nil")
+	}
+
+	h := hmac.New(hashFunc, key)
+	if _, err := h.Write(message); err != nil {
+		return nil, err // Hash.Write never returns an error per interface contract.
+	}
+
+	return h.Sum(nil), nil
+}
+
+// uint64ToBytes converts v to a byte slice in big-endian order.
+func uint64ToBytes(v uint64) []byte {
+	return binary.BigEndian.AppendUint64(nil, v)
 }
 
 // dynamicTruncation extracts a dynamic binary code from the hash using an
 // offset. This step is defined in RFC 4226 for generating an OTP.
-func dynamicTruncation(hash []byte) int {
-	offset := hash[len(hash)-1] & 0xf
-	return (int(hash[offset]&0x7f)<<24 |
-		int(hash[offset+1]&0xff)<<16 |
-		int(hash[offset+2]&0xff)<<8 |
-		int(hash[offset+3]&0xff))
-}
-
-// formatOTP formats the OTP to have leading zeros and match the desired
-// number of digits.
-func formatOTP(code int, digits uint) string {
-	otp := code % int(math.Pow10(int(digits)))
-	return fmt.Sprintf("%0*d", digits, otp)
-}
-
-// GenerateOTP generates a HMAC-based One Time Password (OTP) using the given
-// parameters. It supports generating OTPs as per HOTP (RFC 4226) and TOTP
-// (RFC 6238) standards. This function contains common logic of the HOTP
-// and TOTP algorithms.
-func GenerateOTP(hashFunc func() hash.Hash, secret []byte, counter uint64, digits uint) (string, error) {
-	if len(secret) < 16 {
-		return "", fmt.Errorf("secret must be at least 16 bytes")
+func dynamicTruncation(hashBytes []byte) (int, error) {
+	if len(hashBytes) < 20 {
+		return 0, fmt.Errorf("hash length must be at least 20 bytes, got %d", len(hashBytes))
 	}
 
-	counterBytes := uint64ToBytes(counter)
-	hash, err := ComputeHMAC(hashFunc, secret, counterBytes)
+	offset := hashBytes[len(hashBytes)-1] & 0x0f
+
+	return int(hashBytes[offset+0]&0x7f)<<24 |
+		int(hashBytes[offset+1]&0xff)<<16 |
+		int(hashBytes[offset+2]&0xff)<<8 |
+		int(hashBytes[offset+3]&0xff), nil
+}
+
+// pow10 contains powers of 10 from 10^0 to 10^8, used to truncate and
+// format OTP codes to a specific number of digits.
+var pow10 = [9]int{
+	1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
+}
+
+// formatOTP formats code as a zero-padded string of the requested number
+// of digits, truncating to the least significant digits if necessary.
+func formatOTP(code int, digits uint) (string, error) {
+	if digits == 0 || int(digits) >= len(pow10) {
+		return "", fmt.Errorf("invalid number of digits: %d", digits)
+	}
+
+	return fmt.Sprintf("%0*d", digits, code%pow10[digits]), nil
+}
+
+// generateOTP generates a HMAC-based One Time Password using the given hash
+// function, secret, counter, and digit length.
+//
+// It implements common logic shared by HOTP (RFC 4226) and TOTP (RFC 6238).
+func generateOTP(hashFunc HashFunc, secret []byte, counter uint64, digits uint) (string, error) {
+	if hashFunc == nil {
+		return "", errors.New("hash function is nil")
+	}
+	if len(secret) < minSecretLen {
+		return "", fmt.Errorf("secret must be at least %d bytes, got %d", minSecretLen, len(secret))
+	}
+
+	hash, err := computeHMAC(hashFunc, secret, uint64ToBytes(counter))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("generate otp: %w", err)
 	}
 
-	code := dynamicTruncation(hash)
-	otp := formatOTP(code, digits)
+	code, err := dynamicTruncation(hash)
+	if err != nil {
+		return "", fmt.Errorf("generate otp: %w", err)
+	}
+
+	otp, err := formatOTP(code, digits)
+	if err != nil {
+		return "", fmt.Errorf("generate otp: %w", err)
+	}
 
 	return otp, nil
-}
-
-// Validate securely compares two OTP values.
-func Validate(x, y string) bool {
-	// Ensure both OTPs have the same length to prevent length-based attacks
-	if len(x) != len(y) {
-		return false
-	}
-
-	// Use constant-time comparison to prevent timing attacks
-	return subtle.ConstantTimeCompare([]byte(x), []byte(y)) == 1
 }

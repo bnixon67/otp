@@ -7,7 +7,6 @@ import (
 	"crypto/sha1" // skipcq: GSC-G505
 	"crypto/sha256"
 	"crypto/sha512"
-	"encoding/base32"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,28 +21,8 @@ import (
 
 const timeFormat = time.RFC3339
 
-func parseFlags() (secret string, digits uint, timeString, hash string) {
-	flag.StringVar(&secret, "secret", "", "Base32 encoded secret")
-	flag.UintVar(&digits, "digits", 6, "Number of digits")
-	flag.StringVar(&timeString, "time", time.Now().Format(timeFormat), "Timestamp for OTP (default: now)")
-	flag.StringVar(&hash, "hash", "sha1", "Hash function (sha1, sha256, sha512)")
-	flag.Parse()
-	return
-}
-
-func validateSecret(secret string) error {
-	if secret == "" {
-		return errors.New("secret is required")
-	}
-	return nil
-}
-
 func parseTime(timeString string) (time.Time, error) {
 	return time.Parse(timeFormat, timeString)
-}
-
-func decodeSecret(secret string) ([]byte, error) {
-	return base32.StdEncoding.DecodeString(secret)
 }
 
 func hashFunction(hashName string) (func() hash.Hash, error) {
@@ -64,16 +43,16 @@ func printTOTP(totp string, parsedTime time.Time, digits uint, hashName string) 
 }
 
 func runTOTP(secret string, digits uint, timeString, hashName string) error {
-	if err := validateSecret(secret); err != nil {
-		return err
+	if secret == "" {
+		return errors.New("secret is required")
+	}
+
+	data, err := otp.DecodeSecret(secret)
+	if err != nil {
+		return fmt.Errorf("invalid secret: %w", err)
 	}
 
 	parsedTime, err := parseTime(timeString)
-	if err != nil {
-		return err
-	}
-
-	data, err := decodeSecret(secret)
 	if err != nil {
 		return err
 	}
@@ -83,7 +62,8 @@ func runTOTP(secret string, digits uint, timeString, hashName string) error {
 		return err
 	}
 
-	totp, err := otp.GenerateTOTP(data, parsedTime, digits, hashFunc)
+	opts := otp.TOTPOptions{Digits: digits, HashFunc: hashFunc}
+	totp, err := otp.GenerateTOTP(data, parsedTime, opts)
 	if err != nil {
 		return err
 	}
@@ -95,14 +75,18 @@ func runTOTP(secret string, digits uint, timeString, hashName string) error {
 
 func usage(err error) {
 	fmt.Fprintf(os.Stderr, "%v\n", err)
-	fmt.Printf("Usage: %s -secret base32_secret -digits number -time time -hash function\n", path.Base(os.Args[0]))
+	fmt.Fprintf(os.Stderr, "Usage: %s -secret base32_secret -digits number -time time -hash function\n", path.Base(os.Args[0]))
 	flag.PrintDefaults()
 }
 
 func main() {
-	secret, digits, timeString, hashName := parseFlags()
+	secret := flag.String("secret", "", "Base32 encoded secret")
+	digits := flag.Uint("digits", 6, "Number of digits")
+	timeString := flag.String("time", time.Now().Format(timeFormat), "Timestamp for OTP (default: now)")
+	hashName := flag.String("hash", "sha1", "Hash function (sha1, sha256, sha512)")
+	flag.Parse()
 
-	err := runTOTP(secret, digits, timeString, hashName)
+	err := runTOTP(*secret, *digits, *timeString, *hashName)
 	if err != nil {
 		usage(err)
 		os.Exit(1)
